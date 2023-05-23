@@ -1,12 +1,12 @@
 language: "English"
 model_name: "eng-1"
-batch_size: 32
+batch_size: 16
 lr: 0.005
 num_layers: 2
 hidden_size: 256
 dropout: 0.5
 epochs: 500
-seed: 42
+seed: 423
 data_dir: "./data/English/"
 ckpt_dir: "./ckpt/"
 train_file: "train.txt"

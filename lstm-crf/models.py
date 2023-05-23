@@ -99,16 +99,16 @@ class CRFModule(nn.Module):
         return alpha
 
     def _score_sentence(self, feats: torch.Tensor, tags: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        batch_szie, seq_len = mask.shape
+        _, seq_len = mask.shape
         # score = feats.new_zeros(batch_szie)
         first_tag_indices = tags[:, 0]
         score = feats[:, 0, first_tag_indices] + self.start_transitions[first_tag_indices]
-        for i in range(seq_len - 1):
-            cur_tag = tags[:, i]
-            next_tag = tags[:, i+1]
-            transition_score = self.transitions[next_tag, cur_tag]
-            emit_score = feats[:, i+1].gather(1, next_tag.view(-1, 1)).squeeze()
-            score = torch.where(mask[:, i+1], score + transition_score + emit_score, score)
+        for i in range(1, seq_len):
+            prev_tag = tags[:, i-1]
+            next_tag = tags[:, i]
+            transition_score = self.transitions[next_tag, prev_tag]
+            emit_score = feats[:, i].gather(1, next_tag.view(-1, 1)).squeeze()
+            score = torch.where(mask[:, i], score + transition_score + emit_score, score)
         last_tag_indices = tags.gather(1, mask.sum(dim=1).long().view(-1, 1) - 1).flatten()
         score += self.stop_transitions[last_tag_indices]
         return score
@@ -118,47 +118,107 @@ class CRFModule(nn.Module):
         gold_score = self._score_sentence(feats, tags, mask)
         return (forward_score - gold_score).mean()
     
-    def _viterbi_decode(self, feats: torch.Tensor, mask: torch.Tensor):
-        batch_size, sequence_length, num_tags = feats.shape
+    def _viterbi_decode(self, logits: torch.Tensor, mask: torch.Tensor):
+        batch_size, max_len, n_tags = logits.size()
+        seq_len = mask.long().sum(1)
+        logits = logits.transpose(0, 1).data  # L, B, H
+        mask = mask.transpose(0, 1).data.eq(True)  # L, B
+        flip_mask = mask.eq(False)
 
-        # Initialize the viterbi variables in log space
-        path_scores = feats[:, 0] + self.start_transitions
+        # dp
+        vpath = logits.new_zeros((max_len, batch_size, n_tags),
+                                 dtype=torch.long)
+        vscore = logits[0]  # bsz x n_tags
+        transitions = logits.new_zeros(n_tags + 2, n_tags + 2)
+        transitions[:n_tags, :n_tags] += self.transitions.transpose(0, 1).data
+        transitions[n_tags, :n_tags] += self.start_transitions.data
+        transitions[:n_tags, n_tags + 1] += self.stop_transitions.data
 
-        # Create a tensor to hold accumulated sequence scores at each step
-        path_scores_history = feats.new_zeros(size=(batch_size, sequence_length, num_tags))
+        vscore += transitions[n_tags, :n_tags]
 
-        # Create a tensor to hold the backpointers
-        backpointers = feats.new_zeros(size=(batch_size, sequence_length, num_tags), dtype=torch.long)
+        trans_score = transitions[:n_tags, :n_tags].view(1, n_tags,
+                                                         n_tags).data
+        end_trans_score = transitions[:n_tags,
+                                      n_tags + 1].view(1, 1, n_tags).repeat(
+                                          batch_size, 1, 1)  # bsz, 1, n_tags
 
-        for t in range(1, sequence_length):
-            # Broadcast the transition scores to one more dimension
-            scores_with_trans = path_scores.unsqueeze(1) + self.transitions
+        # 针对长度为1的句子
+        vscore += transitions[:n_tags, n_tags + 1].view(1, n_tags).repeat(
+            batch_size, 1).masked_fill(seq_len.ne(1).view(-1, 1), 0)
+        for i in range(1, max_len):
+            prev_score = vscore.view(batch_size, n_tags, 1)
+            cur_score = logits[i].view(batch_size, 1, n_tags) + trans_score
+            score = prev_score + cur_score.masked_fill(flip_mask[i].view(
+                batch_size, 1, 1), 0)  # bsz x n_tag x n_tag
+            # 需要考虑当前位置是该序列的最后一个
+            score += end_trans_score.masked_fill(
+                seq_len.ne(i + 1).view(-1, 1, 1), 0)
 
-            # Take the maximum over the tag dimension
-            max_scores, max_score_tags = torch.max(scores_with_trans, dim=-1)
+            best_score, best_dst = score.max(1)
+            vpath[i] = best_dst
+            # 由于最终是通过last_tags回溯，需要保持每个位置的vscore情况
+            vscore = best_score.masked_fill(
+                flip_mask[i].view(batch_size, 1), 0) + \
+                vscore.masked_fill(mask[i].view(batch_size, 1), 0)
 
-            # Use the mask to find the valid path scores and update accordingly
-            mask_t = mask[:, t].unsqueeze(-1)
-            path_scores = torch.where(mask_t, feats[:, t] + max_scores, path_scores)
-            path_scores_history[:, t] = path_scores
-            backpointers[:, t] = max_score_tags
+        # backtrace
+        batch_idx = torch.arange(
+            batch_size, dtype=torch.long, device=logits.device)
+        seq_idx = torch.arange(max_len, dtype=torch.long, device=logits.device)
+        lens = (seq_len - 1)
+        # idxes [L, B], batched idx from seq_len-1 to 0
+        idxes = (lens.view(1, -1) - seq_idx.view(-1, 1)) % max_len
 
-        # Transition to STOP_TAG
-        path_scores += self.stop_transitions
+        ans = logits.new_empty((max_len, batch_size), dtype=torch.long)
+        ans_score, last_tags = vscore.max(1)
+        ans[idxes[0], batch_idx] = last_tags
+        for i in range(max_len - 1):
+            last_tags = vpath[idxes[i], batch_idx, last_tags]
+            ans[idxes[i + 1], batch_idx] = last_tags
 
-        # Traceback
-        best_paths = torch.zeros_like(mask, dtype=torch.long)
-        _, best_tags = torch.max(path_scores, dim=-1)
-        best_paths[:, -1] = best_tags
-        for t in range(sequence_length-2, -1, -1):
-            mask_t = mask[:, t+1]
-            # print("$$==", best_tags.shape, best_paths.shape, backpointers[torch.arange(batch_size), t+1, best_tags].shape)
-            best_tags = torch.where(mask_t, backpointers[torch.arange(batch_size), t+1, best_tags], best_tags)
-            # print("$$", best_tags.shape, best_paths.shape)
-            best_paths[:, t] = best_tags
+        paths = (ans * mask).transpose(0, 1)
+        return paths
+    # def _viterbi_decode(self, feats: torch.Tensor, mask: torch.Tensor):
+    #     batch_size, sequence_length, num_tags = feats.shape
 
-        # The best_paths tensor has a dimension size of [batch_size, sequence_length]
-        # where best_paths[i, :] is the best path for the i-th sample in the batch.
-        return best_paths
+    #     # Initialize the viterbi variables in log space
+    #     path_scores = feats[:, 0] + self.start_transitions
+
+    #     # Create a tensor to hold accumulated sequence scores at each step
+    #     path_scores_history = feats.new_zeros(size=(batch_size, sequence_length, num_tags))
+
+    #     # Create a tensor to hold the backpointers
+    #     backpointers = feats.new_zeros(size=(batch_size, sequence_length, num_tags), dtype=torch.long)
+
+    #     for t in range(1, sequence_length):
+    #         # Broadcast the transition scores to one more dimension
+    #         scores_with_trans = path_scores.unsqueeze(1) + self.transitions
+
+    #         # Take the maximum over the tag dimension
+    #         max_scores, max_score_tags = torch.max(scores_with_trans, dim=-1)
+
+    #         # Use the mask to find the valid path scores and update accordingly
+    #         mask_t = mask[:, t].unsqueeze(-1)
+    #         path_scores = torch.where(mask_t, feats[:, t] + max_scores, path_scores)
+    #         path_scores_history[:, t] = path_scores
+    #         backpointers[:, t] = max_score_tags
+
+    #     # Transition to STOP_TAG
+    #     path_scores += self.stop_transitions
+
+    #     # Traceback
+    #     best_paths = torch.zeros_like(mask, dtype=torch.long)
+    #     _, best_tags = torch.max(path_scores, dim=-1)
+    #     best_paths[:, -1] = best_tags
+    #     for t in range(sequence_length-2, -1, -1):
+    #         mask_t = mask[:, t+1]
+    #         # print("$$==", best_tags.shape, best_paths.shape, backpointers[torch.arange(batch_size), t+1, best_tags].shape)
+    #         best_tags = torch.where(mask_t, backpointers[torch.arange(batch_size), t+1, best_tags], best_tags)
+    #         # print("$$", best_tags.shape, best_paths.shape)
+    #         best_paths[:, t] = best_tags
+
+    #     # The best_paths tensor has a dimension size of [batch_size, sequence_length]
+    #     # where best_paths[i, :] is the best path for the i-th sample in the batch.
+    #     return best_paths
 
 
