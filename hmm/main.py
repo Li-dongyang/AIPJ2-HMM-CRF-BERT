@@ -1,14 +1,15 @@
 import numpy as np
 from sklearn.metrics import classification_report
 from readdata import read_data
+from typing import Dict, List
 
 class HMM:
-    def __init__(self, unique_states):
+    def __init__(self, unique_states: List[str]):
         self.states = unique_states
         self.N = len(unique_states) # Number of states
-        self.A = np.full((self.N, self.N), 1e-8) # Transition Probabilities
-        self.B = {} # Emission Probabilities
-        self.Pi = np.full(self.N, 1e-8) # Initial Probabilities
+        self.A = np.full((self.N, self.N), 1e-6) # Transition Probabilities
+        self.B: Dict[str, np.ndarray] = {} # Emission Probabilities
+        self.Pi = np.full(self.N, 1e-6) # Initial Probabilities
 
     def train(self, train_data):
         # Counting occurrences
@@ -17,7 +18,7 @@ class HMM:
                 word, state = sentence[i]
                 state_index = self.states.index(state)
 
-                self.B[word] = self.B.get(word, np.zeros(self.N))
+                self.B[word] = self.B.get(word, np.full(self.N, 1e-5))
                 self.B[word][state_index] += 1
 
                 if i == 0: # First word in sentence
@@ -27,32 +28,31 @@ class HMM:
                     prev_state_index = self.states.index(prev_state)
                     self.A[prev_state_index][state_index] += 1
 
-        # Normalizing counts to probabilities
-        self.A /= self.A.sum(axis=1, keepdims=True)
+        # Normalizing counts to probabilities and then taking logs
+        self.A = np.log(self.A / self.A.sum(axis=1, keepdims=True))
         for word in self.B:
-            self.B[word] /= self.B[word].sum()
-        self.Pi /= self.Pi.sum()
+            self.B[word] = np.log(self.B[word] / self.B[word].sum())
+        self.Pi = np.log(self.Pi / self.Pi.sum())
 
     def predict(self, test_data):
         y_true, y_pred = [], []
 
         for sentence in test_data:
-            obs = [word for word, _ in sentence]
-            states = [state for _, state in sentence]
+            obs, states = map(list, zip(*sentence))
             y_true.extend(states)
 
             V = np.zeros((self.N, len(obs))) 
             ptr = np.zeros((self.N, len(obs)), dtype=int)
 
             # Initialization
-            V[:, 0] = self.Pi * self.B.get(obs[0], np.zeros(self.N))
+            V[:, 0] = self.Pi + self.B.get(obs[0], np.full(self.N, 1e-5))
 
             # Recursion
             for t in range(1, len(obs)):
                 for s in range(self.N):
-                    trans_p = V[:, t-1] * self.A[:, s]
+                    trans_p = V[:, t-1] + self.A[:, s]
                     ptr[s, t] = np.argmax(trans_p)
-                    V[s, t] = np.max(trans_p) * self.B.get(obs[t], np.zeros(self.N))[s]
+                    V[s, t] = np.max(trans_p) + self.B.get(obs[t], np.zeros(self.N))[s]
 
             # Backtracking
             pred_states = [np.argmax(V[:, -1])]
@@ -63,9 +63,9 @@ class HMM:
 
         return y_true, y_pred
 
-    
+   
 if __name__ == '__main__':
-    language = "English"
+    language = "Chinese"
     sorted_labels_eng= ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-MISC", "I-MISC"]
     sorted_labels_chn = [
         'O',

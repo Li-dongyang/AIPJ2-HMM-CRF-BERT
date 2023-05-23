@@ -25,6 +25,8 @@ if __name__ == '__main__':
     train_data = read_data(train_file)
     val_data = read_data(val_file)
 
-    print(train_data[-1])
+    c, d = map(list, zip(*train_data[-1]))
+    print(c)
+    print(d)
     print(val_data[-1])
 
