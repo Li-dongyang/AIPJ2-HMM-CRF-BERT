@@ -9,7 +9,7 @@ from typing import Dict, List, Tuple
 class NERModel(pl.LightningModule):
     def __init__(self, config: Config):
         super(NERModel, self).__init__()
-        self.lstm_module = LSTM(config.tokenizer, config.num_layers, config.hidden_size, config.dropout)
+        self.lstm_module = LSTM(config.tokenizer, config.num_layers, config.hidden_size, config.num_labels, config.dropout)
         self.crf_module = CRFModule(config.num_labels)
         self.f1 = MulticlassF1Score(num_classes=config.num_labels, ignore_index=0, average='micro')
         self.config = config
@@ -18,7 +18,7 @@ class NERModel(pl.LightningModule):
 
     def forward(self, input_ids, word_ids, mask):
         emissions = self.lstm_module(input_ids)
-        feats = NERModel.aggragate(emissions, word_ids)
+        feats = NERModel.aggragate(emissions, word_ids, mask)
         pred = self.crf_module._viterbi_decode(feats, mask)
         return pred
 
@@ -33,7 +33,7 @@ class NERModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         input_ids, labels, word_ids, mask = batch
         emissions = self.lstm_module(input_ids)
-        feats = NERModel.aggragate(emissions, word_ids)
+        feats = NERModel.aggragate(emissions, word_ids, mask)
         pred = self.crf_module._viterbi_decode(feats, mask)
         self.pred.append(pred.flatten())
         self.golden_truth.append(labels.flatten())
@@ -51,14 +51,15 @@ class NERModel(pl.LightningModule):
         return optimizer
     
     @staticmethod
-    def aggragate(lstm_feats: torch.Tensor, word_ids: Tuple[List[int]], mask: torch.Tensor):
+    def aggragate(lstm_feats: torch.Tensor, word_ids: Tuple[torch.Tensor], mask: torch.Tensor):
         hidden_size = lstm_feats.shape[-1]
         batch_size, seq_len = mask.size()
         feats = torch.zeros(batch_size, seq_len, hidden_size, device=lstm_feats.device)
         for i, ids in enumerate(word_ids):
             for j, id in enumerate(ids):
                 if id < 0: continue
-                feats[i, id] += lstm_feats[i, j]
+                logits = lstm_feats[i, j]
+                feats[i, id] += logits
         return feats
 
     
@@ -72,7 +73,7 @@ class LSTM(nn.Module):
 
     def forward(self, sentence):
         embeds = self.embeddings(sentence)
-        lstm_out, _ = self.lstm(embeds, self.hidden)
+        lstm_out, _ = self.lstm(embeds)
         lstm_feats = self.linear(lstm_out)
         return lstm_feats
 
@@ -121,7 +122,7 @@ class CRFModule(nn.Module):
         gold_score = self._score_sentence(feats, tags, mask)
         return (forward_score - gold_score).mean()
     
-    def _viterbi_decode(self, feats, mask):
+    def _viterbi_decode(self, feats: torch.Tensor, mask: torch.Tensor):
         batch_size, sequence_length, num_tags = feats.shape
 
         # Initialize the viterbi variables in log space
@@ -153,7 +154,7 @@ class CRFModule(nn.Module):
         path_scores += self.stop_transitions
 
         # Traceback
-        best_paths = torch.zeros_like(backpointers, dtype=torch.long)
+        best_paths = torch.zeros_like(mask, dtype=torch.long)
         _, best_tags = torch.max(path_scores, dim=1)
         best_paths[:, -1] = best_tags
         for t in range(sequence_length-2, -1, -1):

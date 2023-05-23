@@ -1,13 +1,13 @@
 language: "English"
 model_name: "BERT"
-batch_size: 32
+batch_size: 1024
 lr: 0.001
 num_layers: 2
 hidden_size: 256
 dropout: 0.1
 epochs: 1
 seed: 12345
-data_dir: "./data/$language/"
+data_dir: "./data/English/"
 ckpt_dir: "./ckpt/"
 train_file: "train.txt"
 dev_file: "validation.txt"

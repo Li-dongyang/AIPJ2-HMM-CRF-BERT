@@ -6,7 +6,7 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 
 class NERDataset(Dataset):
-    def __init__(self, dir: str, label2id: Dict[str, int], tokenizer: AutoTokenizer) -> None:
+    def __init__(self, dir: str, label2id: Dict[str, int], language: str, tokenizer: AutoTokenizer) -> None:
         super().__init__()
         sentence_data = []
         label_data = []
@@ -37,14 +37,15 @@ class NERDataset(Dataset):
         s = self.sentence_data[index]
         l = self.label_data[index]
 
-        inputs: BatchEncoding = self.tokenizer(s, padding=True, truncation=True, return_attention_mask=False, \
-                                return_token_type_ids =False, return_length=False, return_tensors='pt')
+        inputs: BatchEncoding = self.tokenizer(s, padding=False, truncation=False, is_split_into_words=True, return_attention_mask=False, \
+                                return_token_type_ids=False, return_length=False)
         word_ids = inputs.word_ids()
         word_ids = [-1 if x is None else x for x in word_ids]
-        input_ids = inputs['input_ids'].squeeze(0)
+        input_ids = inputs['input_ids']
+        # assert len(word_ids) == len(input_ids)
+        # assert max(word_ids) <= len(l), f'{word_ids}, {input_ids}, {l}, {self.tokenizer.tokenize(s)}, '
         labels = [self.label2id[label] for label in l]
-
-        return input_ids, torch.as_tensor(labels, dtype=torch.long), torch.as_tensor(word_ids, dtype=torch.long)
+        return torch.as_tensor(input_ids, dtype=torch.long), torch.as_tensor(labels, dtype=torch.long), torch.as_tensor(word_ids, dtype=torch.long)
     
 def collate_wapper(pad_idx):
     def collate_fn(batch):

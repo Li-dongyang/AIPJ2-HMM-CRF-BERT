@@ -6,7 +6,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from sklearn.metrics import classification_report
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from .models import NERModel 
+from models import NERModel 
 from readdata import NERDataset, collate_wapper
 from all_utils import Config
 
@@ -17,8 +17,8 @@ def run_with(config: Config):
     tokenizer = AutoTokenizer.from_pretrained(config.tokenizer)
 
     # Load the training, validation, and test datasets
-    train_dataset = NERDataset(dir=config.data_dir+config.train_file, label2id=config.label2id, tokenizer=tokenizer)
-    val_dataset = NERDataset(dir=config.data_dir+config.dev_file, label2id=config.label2id, tokenizer=tokenizer)
+    train_dataset = NERDataset(dir=config.data_dir+config.train_file, label2id=config.label2id, language=config.language, tokenizer=tokenizer)
+    val_dataset = NERDataset(dir=config.data_dir+config.dev_file, label2id=config.label2id, language=config.language, tokenizer=tokenizer)
 
     # Create data loaders
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, collate_fn=collate_wapper(pad_idx=tokenizer.pad_token_id),
@@ -44,7 +44,7 @@ def run_with(config: Config):
                 mode='max',
             ),
         ],
-        fast_dev_run=True
+        fast_dev_run=False
     )
 
     # Train the model
@@ -54,12 +54,11 @@ def run_with(config: Config):
 def test_with(config: Config):
     # Load the best model
     tokenizer = AutoTokenizer.from_pretrained(config.tokenizer)
-    test_dataset = NERDataset(dir=config.data_dir + config.test_file, label2id=config.label2id, tokenizer=tokenizer)
+    test_dataset = NERDataset(dir=config.data_dir + config.test_file, label2id=config.label2id, language=config.language, tokenizer=tokenizer)
     test_loader = DataLoader(test_dataset, batch_size=config.batch_size, collate_fn=collate_wapper(pad_idx=tokenizer.pad_token_id),
                             shuffle=False, num_workers=8)
 
-    model = NERModel(config)
-    model.load_state_dict(torch.load(config.ckpt_dir + config.model_name + '.ckpt'))
+    model = NERModel.load_from_checkpoint(config.ckpt_dir + config.model_name + '.ckpt', config=config)
 
     # Evaluate the model on test data
     model.eval()
@@ -70,19 +69,24 @@ def test_with(config: Config):
 
     with torch.no_grad():
         for batch in test_loader:
-            batch = batch.cuda()
             input_ids, labels, word_ids, mask = batch
+            input_ids = input_ids.cuda()
+            labels = labels.cuda()
+            word_ids = tuple(t.cuda() for t in word_ids)
+            mask = mask.cuda()
             predictions = model(input_ids, word_ids, mask)
-            all_predictions.append(predictions.flatten().cpu())
-            all_labels.append(labels.flatten().cpu())
+            all_predictions.append(predictions.flatten())
+            all_labels.append(labels.flatten())
 
         # Compute the F1 score
-        y_true = torch.cat(all_labels, dim=0).numpy()
-        y_pred = torch.cat(all_predictions, dim=0).numpy()
+        y_true = torch.cat(all_labels, dim=0).cpu().tolist()
+        y_pred = torch.cat(all_predictions, dim=0).cpu().tolist()
 
+    y_true = [config.id2label[it] for it in y_true]
+    y_pred = [config.id2label[it] for it in y_pred]
     print(classification_report(y_true, y_pred, labels=config.sort_labels[1:], digits=4))
 
 if __name__ == '__main__':
-    config = Config.get_config('./eng.yaml')
-    run_with(config)
+    config = Config.get_config('./lstm-crf/eng.yaml')
+    # run_with(config)
     test_with(config)

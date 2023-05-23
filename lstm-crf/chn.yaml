@@ -7,7 +7,7 @@ hidden_size: 256
 dropout: 0.5
 epochs: 1
 seed: 12345
-data_dir: "./data/$language/"
+data_dir: "./data/Chinese/"
 ckpt_dir: "./ckpt/"
 train_file: "train.txt"
 dev_file: "dev.txt"
