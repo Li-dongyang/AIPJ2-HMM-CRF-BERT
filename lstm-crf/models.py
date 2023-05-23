@@ -88,14 +88,14 @@ class CRFModule(nn.Module):
 
     def _forward_alg(self, feats: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         _, seq_len = mask.shape
-        mask_in_tag = mask.expand_as(feats)
+        mask_in_tag = mask.unsqueeze(-1).expand(-1, -1, self.tagset_size)
         forward_var = self.start_transitions + feats[:, 0]
         for t in range(1, seq_len):
             next_score = forward_var.unsqueeze(1) + self.transitions.unsqueeze(0) + feats[:, t].unsqueeze(-1)
-            next_score = _log_sum_exp(next_score)
+            next_score = _log_sum_exp(next_score, dim=-1)
             forward_var = torch.where(mask_in_tag[:, t], next_score, forward_var)
         terminal_var = forward_var + self.stop_transitions
-        alpha = _log_sum_exp(terminal_var) # (batch_size,)
+        alpha = _log_sum_exp(terminal_var, dim=-1) # (batch_size,)
         return alpha
 
     def _score_sentence(self, feats: torch.Tensor, tags: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
@@ -122,7 +122,6 @@ class CRFModule(nn.Module):
         batch_size, sequence_length, num_tags = feats.shape
 
         # Initialize the viterbi variables in log space
-        # path_scores = feats.new_zeros(size=(batch_size, num_tags))
         path_scores = feats[:, 0] + self.start_transitions
 
         # Create a tensor to hold accumulated sequence scores at each step
@@ -133,16 +132,14 @@ class CRFModule(nn.Module):
 
         for t in range(1, sequence_length):
             # Broadcast the transition scores to one more dimension
-            scores_with_trans = path_scores.unsqueeze(1) + self.transitions.unsqueeze(0)
+            scores_with_trans = path_scores.unsqueeze(1) + self.transitions
 
             # Take the maximum over the tag dimension
             max_scores, max_score_tags = torch.max(scores_with_trans, dim=-1)
 
-            # Add emission scores
-            path_scores = feats[:, t] + max_scores
-
-            # Apply the mask and save scores and backpointers
-            path_scores = torch.where(mask[:, t].unsqueeze(-1), path_scores, path_scores.clone().detach())
+            # Use the mask to find the valid path scores and update accordingly
+            mask_t = mask[:, t].unsqueeze(-1)
+            path_scores = torch.where(mask_t, feats[:, t] + max_scores, path_scores)
             path_scores_history[:, t] = path_scores
             backpointers[:, t] = max_score_tags
 
@@ -151,13 +148,17 @@ class CRFModule(nn.Module):
 
         # Traceback
         best_paths = torch.zeros_like(mask, dtype=torch.long)
-        _, best_tags = torch.max(path_scores, dim=1)
+        _, best_tags = torch.max(path_scores, dim=-1)
         best_paths[:, -1] = best_tags
         for t in range(sequence_length-2, -1, -1):
-            best_tags = backpointers[torch.arange(batch_size), t+1, best_tags]
+            mask_t = mask[:, t+1]
+            # print("$$==", best_tags.shape, best_paths.shape, backpointers[torch.arange(batch_size), t+1, best_tags].shape)
+            best_tags = torch.where(mask_t, backpointers[torch.arange(batch_size), t+1, best_tags], best_tags)
+            # print("$$", best_tags.shape, best_paths.shape)
             best_paths[:, t] = best_tags
 
         # The best_paths tensor has a dimension size of [batch_size, sequence_length]
         # where best_paths[i, :] is the best path for the i-th sample in the batch.
         return best_paths
+
 
