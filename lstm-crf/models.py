@@ -1,6 +1,7 @@
 import pytorch_lightning as pl
 import torch
 from torch import nn
+from torch import logsumexp as _log_sum_exp
 from all_utils import *
 from transformers import AutoModel
 from torchmetrics.classification import MulticlassF1Score
@@ -85,39 +86,34 @@ class CRFModule(nn.Module):
         self.start_transitions = nn.Parameter(torch.randn(tagset_size))
         self.stop_transitions = nn.Parameter(torch.randn(tagset_size))
 
-    def _log_sum_exp(self, vec):
-        max_score, _ = vec.max(dim=-1)
-        return max_score + torch.log(torch.exp(vec - max_score.unsqueeze(-1)).sum(dim=-1))
-
-    def _forward_alg(self, feats, mask):
+    def _forward_alg(self, feats: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        _, seq_len = mask.shape
+        mask_in_tag = mask.expand_as(feats)
         forward_var = self.start_transitions + feats[:, 0]
-        for t in range(1, feats.size(1)):
-            emit_score = feats[:, t]
-            emit_score = emit_score.unsqueeze(-1)
-            transition_scores = self.transitions.unsqueeze(0)
-            broadcasted_forward_vars = forward_var.unsqueeze(2)
-            next_score = broadcasted_forward_vars + emit_score + transition_scores
-            next_score = self._log_sum_exp(next_score)
-            forward_var = torch.where(mask[:, t].unsqueeze(-1), next_score, forward_var)
+        for t in range(1, seq_len):
+            next_score = forward_var.unsqueeze(1) + self.transitions.unsqueeze(0) + feats[:, t].unsqueeze(-1)
+            next_score = _log_sum_exp(next_score)
+            forward_var = torch.where(mask_in_tag[:, t], next_score, forward_var)
         terminal_var = forward_var + self.stop_transitions
-        alpha = self._log_sum_exp(terminal_var)
+        alpha = _log_sum_exp(terminal_var) # (batch_size,)
         return alpha
 
-    def _score_sentence(self, feats, tags, mask):
-        score = feats.new_zeros(tags.size(0))
+    def _score_sentence(self, feats: torch.Tensor, tags: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        batch_szie, seq_len = mask.shape
+        # score = feats.new_zeros(batch_szie)
         first_tag_indices = tags[:, 0]
-        score += self.start_transitions[first_tag_indices]
-        for i in range(feats.size(1) - 1):
+        score = feats[:, 0, first_tag_indices] + self.start_transitions[first_tag_indices]
+        for i in range(seq_len - 1):
             cur_tag = tags[:, i]
-            next_tag = tags[:, i + 1]
+            next_tag = tags[:, i+1]
             transition_score = self.transitions[next_tag, cur_tag]
-            emit_score = feats[:, i].gather(1, cur_tag.view(-1, 1)).squeeze()
+            emit_score = feats[:, i+1].gather(1, next_tag.view(-1, 1)).squeeze()
             score = torch.where(mask[:, i+1], score + transition_score + emit_score, score)
-        last_tag_indices = tags.gather(1, mask.sum(dim=1).long().view(-1, 1) - 1)
-        score += self.stop_transitions[last_tag_indices.view(-1)]
+        last_tag_indices = tags.gather(1, mask.sum(dim=1).long().view(-1, 1) - 1).flatten()
+        score += self.stop_transitions[last_tag_indices]
         return score
 
-    def forward(self, feats, tags, mask):
+    def forward(self, feats: torch.Tensor, tags: torch.Tensor, mask: torch.Tensor):
         forward_score = self._forward_alg(feats, mask)
         gold_score = self._score_sentence(feats, tags, mask)
         return (forward_score - gold_score).mean()
@@ -126,8 +122,8 @@ class CRFModule(nn.Module):
         batch_size, sequence_length, num_tags = feats.shape
 
         # Initialize the viterbi variables in log space
-        path_scores = feats.new_zeros(size=(batch_size, num_tags))
-        path_scores += feats[:, 0] + self.start_transitions
+        # path_scores = feats.new_zeros(size=(batch_size, num_tags))
+        path_scores = feats[:, 0] + self.start_transitions
 
         # Create a tensor to hold accumulated sequence scores at each step
         path_scores_history = feats.new_zeros(size=(batch_size, sequence_length, num_tags))
@@ -137,10 +133,10 @@ class CRFModule(nn.Module):
 
         for t in range(1, sequence_length):
             # Broadcast the transition scores to one more dimension
-            scores_with_trans = path_scores.unsqueeze(2) + self.transitions
+            scores_with_trans = path_scores.unsqueeze(1) + self.transitions.unsqueeze(0)
 
             # Take the maximum over the tag dimension
-            max_scores, max_score_tags = torch.max(scores_with_trans, dim=1)
+            max_scores, max_score_tags = torch.max(scores_with_trans, dim=-1)
 
             # Add emission scores
             path_scores = feats[:, t] + max_scores
