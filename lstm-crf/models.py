@@ -2,24 +2,25 @@ import pytorch_lightning as pl
 import torch
 from torch import nn
 from all_utils import *
-from transformers import BertForTokenClassification, AutoTokenizer
+from transformers import AutoModel
 from torchmetrics.classification import MulticlassF1Score
 from typing import Dict, List, Tuple
 
 class NERModel(pl.LightningModule):
-    def __init__(self, config: Config, tokenizer: AutoTokenizer):
+    def __init__(self, config: Config):
         super(NERModel, self).__init__()
-        self.lstm_module = LSTM(config.tokenizer, config.num_layers, config.hidden_size)
-        self.crf_module = CRFModule(config.hidden_size, config.num_labels)
+        self.lstm_module = LSTM(config.tokenizer, config.num_layers, config.hidden_size, config.dropout)
+        self.crf_module = CRFModule(config.num_labels)
         self.f1 = MulticlassF1Score(num_classes=config.num_labels, ignore_index=0, average='micro')
         self.config = config
         self.pred = []
         self.golden_truth = []
 
-    def forward(self, sentence):
-        lstm_feats = self.lstm_module(sentence)
-        crf_feats = self.crf_module(lstm_feats)
-        return crf_feats
+    def forward(self, input_ids, word_ids, mask):
+        emissions = self.lstm_module(input_ids)
+        feats = NERModel.aggragate(emissions, word_ids)
+        pred = self.crf_module._viterbi_decode(feats, mask)
+        return pred
 
     def training_step(self, batch, batch_idx):
         input_ids, labels, word_ids, mask = batch
@@ -62,23 +63,22 @@ class NERModel(pl.LightningModule):
 
     
 class LSTM(nn.Module):
-    def __init__(self, embedding_name, num_layers, hidden_dim, num_labels):
+    def __init__(self, embedding_name, num_layers, hidden_size, num_labels, dropout):
         super(LSTM, self).__init__()
-        self.embeddings = BertForTokenClassification.from_pretrained(embedding_name).get_input_embeddings()
-        self.lstm = nn.LSTM(self.embeddings.embedding_dim, hidden_dim, num_layers=num_layers, bidirectional=True)
-        self.linear = nn.Linear(hidden_dim * 2, num_labels)
+        self.embeddings = AutoModel.from_pretrained(embedding_name).get_input_embeddings()
+        self.lstm = nn.LSTM(self.embeddings.embedding_dim, hidden_size=hidden_size,
+                             num_layers=num_layers, bidirectional=True, dropout=dropout)
+        self.linear = nn.Linear(hidden_size * 2, num_labels)
 
     def forward(self, sentence):
-        self.hidden = self.init_hidden()
         embeds = self.embeddings(sentence)
         lstm_out, _ = self.lstm(embeds, self.hidden)
         lstm_feats = self.linear(lstm_out)
         return lstm_feats
 
 class CRFModule(nn.Module):
-    def __init__(self, hidden_dim, tagset_size):
+    def __init__(self, tagset_size):
         super(CRFModule, self).__init__()
-        self.hidden_dim = hidden_dim
         self.tagset_size = tagset_size
         self.transitions = nn.Parameter(torch.randn(tagset_size, tagset_size))
         self.start_transitions = nn.Parameter(torch.randn(tagset_size))

@@ -1,4 +1,4 @@
-from typing import NamedTuple
+from typing import NamedTuple, List
 import yaml
 
 class Config(NamedTuple):
@@ -10,7 +10,6 @@ class Config(NamedTuple):
     hidden_size: int
     dropout: float
     epochs: int
-    device: int
     seed: int
     data_dir: str
     ckpt_dir: str
@@ -24,6 +23,8 @@ class Config(NamedTuple):
     num_labels: int
     label2id: dict
     id2label: dict
+
+    sort_labels: List[str]
 
     def get_config(path: str):
         with open(path, 'r') as f:

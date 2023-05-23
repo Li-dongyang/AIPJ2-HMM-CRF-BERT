@@ -1,21 +1,20 @@
 language: "English"
 model_name: "BERT"
-batch_size: 16
+batch_size: 32
 lr: 0.001
-num_layers: 6
-hidden_size: 768
+num_layers: 2
+hidden_size: 256
 dropout: 0.1
-epochs: 10
-device: 0
+epochs: 1
 seed: 12345
 data_dir: "./data/$language/"
 ckpt_dir: "./ckpt/"
 train_file: "train.txt"
 dev_file: "validation.txt"
-test_file: "test.txt"
+test_file: "validation.txt"
 output_file: "output.txt"
 
-tokenizer: "BERTTokenizer"
+tokenizer: "dbmdz/bert-large-cased-finetuned-conll03-english"
 max_length: 128
 num_labels: 9
 label2id:
@@ -39,3 +38,13 @@ id2label:
   7: "B-MISC"
   8: "I-MISC"
 
+sort_labels:
+  - "O"
+  - "B-PER"
+  - "I-PER"
+  - "B-ORG"
+  - "I-ORG"
+  - "B-LOC"
+  - "I-LOC"
+  - "B-MISC"
+  - "I-MISC"

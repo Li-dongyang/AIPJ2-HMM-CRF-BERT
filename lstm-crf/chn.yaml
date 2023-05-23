@@ -2,11 +2,10 @@ language: "Chinese"
 model_name: "BERT"
 batch_size: 32
 lr: 0.001
-num_layers: 6
-hidden_size: 768
-dropout: 0.1
-epochs: 10
-device: 0
+num_layers: 1
+hidden_size: 256
+dropout: 0.5
+epochs: 1
 seed: 12345
 data_dir: "./data/$language/"
 ckpt_dir: "./ckpt/"
@@ -15,7 +14,7 @@ dev_file: "dev.txt"
 test_file: "test.txt"
 output_file: "output.txt"
 
-tokenizer: "BERTTokenizer"
+tokenizer: "bert-base-chinese"
 max_length: 128
 num_labels: 33
 label2id:
@@ -86,3 +85,38 @@ id2label:
   30: "M-LOC"
   31: "E-LOC"
   32: "S-LOC"
+
+sort_labels:
+  - "O"
+  - "B-NAME"
+  - "M-NAME"
+  - "E-NAME"
+  - "S-NAME"
+  - "B-CONT"
+  - "M-CONT"
+  - "E-CONT"
+  - "S-CONT"
+  - "B-EDU"
+  - "M-EDU"
+  - "E-EDU"
+  - "S-EDU"
+  - "B-TITLE"
+  - "M-TITLE"
+  - "E-TITLE"
+  - "S-TITLE"
+  - "B-ORG"
+  - "M-ORG"
+  - "E-ORG"
+  - "S-ORG"
+  - "B-RACE"
+  - "M-RACE"
+  - "E-RACE"
+  - "S-RACE"
+  - "B-PRO"
+  - "M-PRO"
+  - "E-PRO"
+  - "S-PRO"
+  - "B-LOC"
+  - "M-LOC"
+  - "E-LOC"
+  - "S-LOC"
