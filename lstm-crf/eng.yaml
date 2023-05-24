@@ -1,12 +1,12 @@
 language: "English"
 model_name: "eng-1"
-batch_size: 16
+batch_size: 32
 lr: 0.005
-num_layers: 3
+num_layers: 2
 hidden_size: 256
 dropout: 0.5
 epochs: 500
-seed: 70
+seed: 1234
 data_dir: "./data/English/"
 ckpt_dir: "./ckpt/"
 train_file: "train.txt"
@@ -14,7 +14,7 @@ dev_file: "validation.txt"
 test_file: "validation.txt"
 output_file: "output.txt"
 
-tokenizer: "prajjwal1/bert-small"
+tokenizer: "dslim/bert-base-NER"
 # tokenizer: "dbmdz/bert-large-cased-finetuned-conll03-english"
 max_length: 128
 num_labels: 9

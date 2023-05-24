@@ -18,7 +18,7 @@ class NERDataset(Dataset):
                 if line:
                     tokens = line.split(' ')
                     sentence.append(tokens[0])
-                    labels.append(tokens[1])
+                    labels.append(label2id[tokens[1]])
                 else:
                     if len(sentence) > 0:
                         sentence_data.append(sentence)
@@ -28,7 +28,6 @@ class NERDataset(Dataset):
         self.sentence_data = sentence_data
         self.label_data = label_data  
         self.tokenizer = tokenizer 
-        self.label2id = label2id
     
     def __len__(self) -> int:
         return len(self.sentence_data)
@@ -43,9 +42,8 @@ class NERDataset(Dataset):
         word_ids = [-1 if x is None else x for x in word_ids]
         input_ids = inputs['input_ids']
         # assert len(word_ids) == len(input_ids)
-        # assert max(word_ids) <= len(l), f'{word_ids}, {input_ids}, {l}, {self.tokenizer.tokenize(s)}, '
-        labels = [self.label2id[label] for label in l]
-        return torch.as_tensor(input_ids, dtype=torch.long), torch.as_tensor(labels, dtype=torch.long), torch.as_tensor(word_ids, dtype=torch.long)
+        # assert max(word_ids) > len(l), f'{word_ids}, {input_ids}, {l}, 
+        return torch.as_tensor(input_ids, dtype=torch.long), torch.as_tensor(l, dtype=torch.long), torch.as_tensor(word_ids, dtype=torch.long)
     
 def collate_wapper(pad_idx):
     def collate_fn(batch):
