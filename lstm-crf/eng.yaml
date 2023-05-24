@@ -1,8 +1,8 @@
 language: "English"
-model_name: "eng-1"
-batch_size: 32
-lr: 0.005
-num_layers: 2
+model_name: "eng-4"
+batch_size: 64
+lr: 0.00005
+num_layers: 1
 hidden_size: 256
 dropout: 0.5
 epochs: 500
@@ -10,8 +10,8 @@ seed: 1234
 data_dir: "./data/English/"
 ckpt_dir: "./ckpt/"
 train_file: "train.txt"
-dev_file: "validation.txt"
-test_file: "validation.txt"
+dev_file: "test.txt"
+test_file: "test.txt"
 output_file: "output.txt"
 
 tokenizer: "dslim/bert-base-NER"

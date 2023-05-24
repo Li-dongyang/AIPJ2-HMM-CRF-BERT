@@ -1,5 +1,5 @@
 language: "Chinese"
-model_name: "chn-1-3"
+model_name: "chn-1-2"
 batch_size: 32
 lr: 0.001
 num_layers: 2
@@ -7,11 +7,11 @@ hidden_size: 768
 dropout: 0.1
 epochs: 500
 seed: 8200
-data_dir: "./data/Chinese/"
+data_dir: "./data/backupchn/"
 ckpt_dir: "./ckpt/"
 train_file: "train.txt"
 dev_file: "validation.txt"
-test_file: "validation.txt"
+test_file: "test.txt"
 output_file: "output.txt"
 
 tokenizer: "bert-base-chinese"

@@ -68,13 +68,13 @@ class NERModel(pl.LightningModule):
 class LSTM(nn.Module):
     def __init__(self, embedding_name, num_layers, hidden_size, num_labels, dropout):
         super(LSTM, self).__init__()
-        self.embeddings = AutoModel.from_pretrained(embedding_name).get_input_embeddings()
-        self.lstm = nn.LSTM(self.embeddings.embedding_dim, hidden_size=hidden_size, batch_first=True,
+        self.embeddings = AutoModel.from_pretrained(embedding_name)
+        self.lstm = nn.LSTM(self.embeddings.config.hidden_size, hidden_size=hidden_size, batch_first=True,
                              num_layers=num_layers, bidirectional=True, dropout=dropout)
         self.linear = nn.Linear(hidden_size * 2, num_labels)
 
     def forward(self, sentence):
-        embeds = self.embeddings(sentence)
+        embeds = self.embeddings(sentence).last_hidden_state
         lstm_out, _ = self.lstm(embeds)
         lstm_feats = self.linear(lstm_out)
         return lstm_feats
