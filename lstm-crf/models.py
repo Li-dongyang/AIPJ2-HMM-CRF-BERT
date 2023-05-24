@@ -13,7 +13,8 @@ class NERModel(pl.LightningModule):
         super(NERModel, self).__init__()
         self.lstm_module = LSTM(config.tokenizer, config.num_layers, config.hidden_size, config.num_labels, config.dropout)
         self.crf_module = LinearCRF(config.num_labels)
-        self.f1 = MulticlassF1Score(num_classes=config.num_labels, ignore_index=0, average='micro')
+        self.f1 = MulticlassF1Score(num_classes=config.num_labels, ignore_index=0, 
+                                    validate_args=False, average='micro')
         self.config = config
         self.pred = []
         self.golden_truth = []
@@ -68,7 +69,7 @@ class LSTM(nn.Module):
     def __init__(self, embedding_name, num_layers, hidden_size, num_labels, dropout):
         super(LSTM, self).__init__()
         self.embeddings = AutoModel.from_pretrained(embedding_name).get_input_embeddings()
-        self.lstm = nn.LSTM(self.embeddings.embedding_dim, hidden_size=hidden_size,
+        self.lstm = nn.LSTM(self.embeddings.embedding_dim, hidden_size=hidden_size, batch_first=True,
                              num_layers=num_layers, bidirectional=True, dropout=dropout)
         self.linear = nn.Linear(hidden_size * 2, num_labels)
 
@@ -89,7 +90,6 @@ class LinearCRF(pl.LightningModule):
 
     def _compute_log_numerator(self, logits: torch.Tensor, mask: torch.Tensor, targets: torch.Tensor):
         batch_size, seq_len, num_tags = logits.size()
-
         # idx_targets = targets  * mask
         score = logits.gather(2, targets.unsqueeze(-1)).squeeze(2)
         score[:, 0] += self.start_transitions.gather(0, targets[:, 0])
@@ -120,8 +120,7 @@ class LinearCRF(pl.LightningModule):
             alpha = torch.where(mask[:, t], alpha_t_sum, alpha)
 
         alpha += self.stop_transitions.unsqueeze(0)
-        log_partition_function = torch.logsumexp(alpha, dim=-1)
-        return log_partition_function
+        return torch.logsumexp(alpha, dim=-1)
 
     def forward(self, logits, targets, mask):
         log_numerator = self._compute_log_numerator(logits, mask, targets)
@@ -132,7 +131,6 @@ class LinearCRF(pl.LightningModule):
 
     def _viterbi_decode(self, logits: torch.Tensor, mask: torch.Tensor):
         batch_size, seq_len, num_tags = logits.size()
-        mask = mask.unsqueeze(-1).expand(-1, -1, num_tags)
         scores = logits[:, 0] + self.start_transitions.unsqueeze(0)
 
         backpointers: List[torch.Tensor] = []
@@ -145,21 +143,23 @@ class LinearCRF(pl.LightningModule):
 
             scores_t, backpointers_t = torch.max(scores_t, dim=-1)
             backpointers.append(backpointers_t)
-            scores_t += logits[:, t]
-            scores = torch.where(mask[:, t], scores_t, scores)
+            scores = torch.where(mask[:, t].unsqueeze(-1), scores_t + logits[:, t], scores)
 
         scores += self.stop_transitions.unsqueeze(0)
 
-        _, best_tags = torch.max(scores, dim=-1, keepdim=True)
+        _, best_tags = torch.max(scores, dim=-1)
         best_paths = [best_tags]
-        for backpointers_t in reversed(backpointers):
-            # assert not any(best_tags >= 9), f"{best_tags}" # .unsqueeze(1).long()
-            best_tags = backpointers_t.gather(1, best_tags)
+        # for backpointers_t in reversed(backpointers):
+        #     # assert not any(best_tags >= 9), f"{best_tags}" # .unsqueeze(1).long()
+        #     best_tags = backpointers_t.gather(1, best_tags)
+        #     best_paths.append(best_tags)
+        for t in range(seq_len-2, -1, -1):
+            best_tags = torch.where(mask[:, t+1], backpointers[t][torch.arange(batch_size), best_tags], best_tags)
+            assert best_tags.size() == (batch_size,)
             best_paths.append(best_tags)
-
         best_paths.reverse()
         # $$ torch.Size([32, 46]) torch.Size([32, 1]) 46 torch.Size([32, 1])                                                                              
         # print("$$$", ret.shape, best_tags.shape, len(best_paths), best_paths[-1].shape)
-        return torch.stack(best_paths, dim=1).squeeze()
+        return torch.stack(best_paths, dim=1).squeeze() * mask
 
 

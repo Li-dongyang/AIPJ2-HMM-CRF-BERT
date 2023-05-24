@@ -5,7 +5,23 @@ from itertools import chain
 from joblib import dump, load
 from readdata import read_data
 
-language = "English"
+language = "Chinese"
+sorted_labels_eng= ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-MISC" , "I-MISC"]
+
+sorted_labels_chn = [
+    'O',
+    'B-NAME', 'M-NAME', 'E-NAME', 'S-NAME'
+    , 'B-CONT', 'M-CONT', 'E-CONT', 'S-CONT'
+    , 'B-EDU', 'M-EDU', 'E-EDU', 'S-EDU'
+    , 'B-TITLE', 'M-TITLE', 'E-TITLE', 'S-TITLE'
+    , 'B-ORG', 'M-ORG', 'E-ORG', 'S-ORG'
+    , 'B-RACE', 'M-RACE', 'E-RACE', 'S-RACE'
+    , 'B-PRO', 'M-PRO', 'E-PRO', 'S-PRO'
+    , 'B-LOC', 'M-LOC', 'E-LOC', 'S-LOC'
+    ]
+train_file = f'./data/{language}/train.txt' 
+val_file = f'./data/{language}/validation.txt' 
+test_file = f'./data/{language}/validation.txt' 
 
 def word2features_eng(sent, i):
     word = sent[i][0]
@@ -79,24 +95,7 @@ def extract_features(sent):
 def get_labels(sent):
     return [label for token, label in sent]
 
-if __name__ == "__main__":
-    
-    train_file = f'./data/{language}/train.txt' 
-    val_file = f'./data/{language}/validation.txt' 
-    test_file = f'..\\data.txt'  
-    sorted_labels_eng= ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-MISC" , "I-MISC"]
-
-    sorted_labels_chn = [
-    'O',
-    'B-NAME', 'M-NAME', 'E-NAME', 'S-NAME'
-    , 'B-CONT', 'M-CONT', 'E-CONT', 'S-CONT'
-    , 'B-EDU', 'M-EDU', 'E-EDU', 'S-EDU'
-    , 'B-TITLE', 'M-TITLE', 'E-TITLE', 'S-TITLE'
-    , 'B-ORG', 'M-ORG', 'E-ORG', 'S-ORG'
-    , 'B-RACE', 'M-RACE', 'E-RACE', 'S-RACE'
-    , 'B-PRO', 'M-PRO', 'E-PRO', 'S-PRO'
-    , 'B-LOC', 'M-LOC', 'E-LOC', 'S-LOC'
-    ]
+def train(): 
     train_data = read_data(train_file)
     val_data = read_data(val_file)
     sort_labels = sorted_labels_eng if language == "English" else sorted_labels_chn
@@ -108,7 +107,7 @@ if __name__ == "__main__":
     y_test = [get_labels(sent) for sent in val_data]
 
     # Create and train the CRF model
-    crf = CRF(algorithm='lbfgs', c1=0.1, c2=0.1)
+    crf = CRF(algorithm='lbfgs', c1=0.01, c2=0.01)
     crf.fit(X_train, y_train)
 
     # Make predictions on the test data
@@ -124,5 +123,23 @@ if __name__ == "__main__":
     # Save the trained CRF model
     dump(crf, f'./ckpt/crf_model-{language}-v1.joblib')
 
+def test():
+    crf = load(f'./ckpt/crf_model-{language}-v1.joblib')
 
+    test_data = read_data(test_file)
 
+    X_test = [extract_features(sent) for sent in test_data]
+    y_test = [get_labels(sent) for sent in test_data]
+    y_pred = crf.predict(X_test)
+    y_pred = list(chain(*y_pred))
+    y_test = list(chain(*y_test))
+    # Evaluate the model's performance
+    sort_labels = sorted_labels_eng if language == "English" else sorted_labels_chn
+    report = metrics.classification_report(
+        y_true = y_test, y_pred=y_pred, labels=sort_labels[1:], digits=4
+    )
+    print(report)
+
+if __name__ == "__main__":
+    train()
+    test()
