@@ -87,6 +87,6 @@ def test_with(config: Config):
     print(classification_report(y_true, y_pred, labels=config.sort_labels[1:], zero_division=0, digits=4))
 
 if __name__ == '__main__':
-    config = Config.get_config('./lstm-crf/eng.yaml')
+    config = Config.get_config('./lstm-crf/chn.yaml')
     run_with(config)
     test_with(config)
