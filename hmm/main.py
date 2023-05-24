@@ -7,9 +7,9 @@ class HMM:
     def __init__(self, unique_states: List[str]):
         self.states = unique_states
         self.N = len(unique_states) # Number of states
-        self.A = np.full((self.N, self.N), 1e-6) # Transition Probabilities
+        self.A = np.full((self.N, self.N), 1e-8) # Transition Probabilities
         self.B: Dict[str, np.ndarray] = {} # Emission Probabilities
-        self.Pi = np.full(self.N, 1e-6) # Initial Probabilities
+        self.Pi = np.full(self.N, 1e-8) # Initial Probabilities
 
     def train(self, train_data):
         # Counting occurrences
@@ -18,7 +18,7 @@ class HMM:
                 word, state = sentence[i]
                 state_index = self.states.index(state)
 
-                self.B[word] = self.B.get(word, np.full(self.N, 1e-5))
+                self.B[word] = self.B.get(word, np.full(self.N, 1e-8))
                 self.B[word][state_index] += 1
 
                 if i == 0: # First word in sentence
@@ -29,10 +29,10 @@ class HMM:
                     self.A[prev_state_index][state_index] += 1
 
         # Normalizing counts to probabilities and then taking logs
-        self.A = np.log(self.A / self.A.sum(axis=1, keepdims=True))
+        self.A = np.log10(self.A / self.A.sum(axis=1, keepdims=True))
         for word in self.B:
-            self.B[word] = np.log(self.B[word] / self.B[word].sum())
-        self.Pi = np.log(self.Pi / self.Pi.sum())
+            self.B[word] = np.log10(self.B[word] / self.B[word].sum())
+        self.Pi = np.log10(self.Pi / self.Pi.sum())
 
     def predict(self, test_data):
         y_true, y_pred = [], []
@@ -65,7 +65,7 @@ class HMM:
 
    
 if __name__ == '__main__':
-    language = "Chinese"
+    language = "English"
     sorted_labels_eng= ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-MISC", "I-MISC"]
     sorted_labels_chn = [
         'O',

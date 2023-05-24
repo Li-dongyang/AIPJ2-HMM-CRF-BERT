@@ -22,9 +22,9 @@ def run_with(config: Config):
 
     # Create data loaders
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, collate_fn=collate_wapper(pad_idx=tokenizer.pad_token_id),
-                            shuffle=True, num_workers=4)
+                            shuffle=True, num_workers=32)
     val_loader = DataLoader(val_dataset, batch_size=config.batch_size, collate_fn=collate_wapper(pad_idx=tokenizer.pad_token_id),
-                            shuffle=False, num_workers=4)
+                            shuffle=False, num_workers=32)
 
     # Initialize our model
     model = NERModel(config)
@@ -56,7 +56,7 @@ def test_with(config: Config):
     tokenizer = AutoTokenizer.from_pretrained(config.tokenizer)
     test_dataset = NERDataset(dir=config.data_dir + config.test_file, label2id=config.label2id, language=config.language, tokenizer=tokenizer)
     test_loader = DataLoader(test_dataset, batch_size=config.batch_size, collate_fn=collate_wapper(pad_idx=tokenizer.pad_token_id),
-                            shuffle=False, num_workers=4)
+                            shuffle=False, num_workers=16)
 
     model = NERModel.load_from_checkpoint(config.ckpt_dir + config.model_name + '.ckpt', config=config)
 
@@ -84,7 +84,7 @@ def test_with(config: Config):
 
     y_true = [config.id2label[it] for it in y_true]
     y_pred = [config.id2label[it] for it in y_pred]
-    print(classification_report(y_true, y_pred, labels=config.sort_labels[1:], digits=4))
+    print(classification_report(y_true, y_pred, labels=config.sort_labels[1:], zero_division=0, digits=4))
 
 if __name__ == '__main__':
     config = Config.get_config('./lstm-crf/eng.yaml')
