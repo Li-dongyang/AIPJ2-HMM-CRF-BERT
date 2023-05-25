@@ -88,5 +88,5 @@ def test_with(config: Config):
 
 if __name__ == '__main__':
     config = Config.get_config('./lstm-crf/chn.yaml')
-    run_with(config)
+    # run_with(config)
     test_with(config)

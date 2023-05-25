@@ -149,10 +149,6 @@ class LinearCRF(pl.LightningModule):
 
         _, best_tags = torch.max(scores, dim=-1)
         best_paths = [best_tags]
-        # for backpointers_t in reversed(backpointers):
-        #     # assert not any(best_tags >= 9), f"{best_tags}" # .unsqueeze(1).long()
-        #     best_tags = backpointers_t.gather(1, best_tags)
-        #     best_paths.append(best_tags)
         for t in range(seq_len-2, -1, -1):
             best_tags = torch.where(mask[:, t+1], backpointers[t][torch.arange(batch_size), best_tags], best_tags)
             assert best_tags.size() == (batch_size,)
