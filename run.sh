@@ -1,3 +1,3 @@
-#!/usr/bin/sh
-export CUDA_VISIBLE_DEVICES=6
+#!/bin/sh
+export CUDA_VISIBLE_DEVICES=3
 python lstm-crf/main.py
