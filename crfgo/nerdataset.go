@@ -6,6 +6,12 @@ import (
 	"strings"
 )
 
+type TemplateFunction struct {
+	TemplateName string
+	IsUnigram bool
+	SamlpeIdx []int
+}
+
 type Dataset struct {
 	Data [][]Pair
 }
