@@ -7,7 +7,7 @@ DevFile: "validation.txt"
 TestFile: "test.txt"
 OutPutFile: "test_out.txt"
 
-Train: True
+Train: false
 MaxConcurrency: 8
 
 Language: "English"
