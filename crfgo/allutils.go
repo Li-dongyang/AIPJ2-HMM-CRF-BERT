@@ -23,16 +23,21 @@ type Pair struct {
 func (dataset *Dataset) LoadDataset(fname string) {
 	dataBytes, err := os.ReadFile(fname)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("loaddata", fname, err)
 		return
 	}
 	sentences := strings.Split(string(dataBytes), "\n\n")
+	sentences = sentences[:len(sentences)-1]
 	dataset.Data = make([][]Pair, len(sentences))
 	for i := range sentences {
 		pairs := strings.Split(sentences[i], "\n")
 		dataset.Data[i] = make([]Pair, 0, len(pairs))
 		for j := range pairs {
 			words := strings.Split(pairs[j], " ")
+			if len(words) != 2 {
+				fmt.Println("loaddata split", fname, "error")
+				return
+			}
 			dataset.Data[i] = append(dataset.Data[i], Pair{words[0], dataset.Label2Idx[words[1]]})
 		}
 	}
@@ -64,36 +69,31 @@ func (dataset *Dataset) Shuffle() {
 	})
 }
 
-func (dataset *Dataset) GetSentence(idx int) []Pair {
-	return dataset.Data[idx]
-}
-
 func (dataset *Dataset) Len() int {
 	return len(dataset.Data)
 }
 
 type Config struct {
-	ModelName    string // Name of the model
-	WeightsPath  string // Path to the weights file
-	TemplatePath string // Path to the template file
-	DatasetPath  string // Path to the dataset file
-	TrainFile    string // Path to the train file
-	DevFile      string // Path to the dev file
-	TestFile     string // Path to the test file
-	outPutFile   string // Path to the output file
+	ModelName    string            `yaml:"ModelName"`    // Name of the model
+	WeightsPath  string            `yaml:"WeightsPath"`  // Path to the weights file
+	TemplatePath string            `yaml:"TemplatePath"` // Path to the template file
+	DatasetPath  string            `yaml:"DatasetPath"`  // Path to the dataset file
+	TrainFile    string            `yaml:"TrainFile"`    // Path to the train file
+	DevFile      string            `yaml:"DevFile"`      // Path to the dev file
+	TestFile     string            `yaml:"TestFile"`     // Path to the test file
+	OutPutFile   string            `yaml:"OutPutFile"`   // Path to the output file
 
-	Train bool // Train the model ?
-
-	Language  string
-	Lr        ProbType       // Learning rate
-	BatchSize int            // Batch size, implemented by chan for aggretated gradients
-	Epoch     int            // Number of epoch
-	NumLabels int            // Number of labels
-	Label2Idx map[string]int // Label to index, do not use negtive number
-	Idx2Label map[int]string // Index to label, do not use negtive number
-
-	maxConcurrency int // Maximum number of concurrent goroutines
+	Train         bool              `yaml:"Train"`         // Train the model?
+	Language      string            `yaml:"Language"`      // Language
+	Lr            ProbType          `yaml:"Lr"`            // Learning rate
+	BatchSize     int               `yaml:"BatchSize"`     // Batch size, implemented by chan for aggregated gradients
+	Epoch         int               `yaml:"Epoch"`         // Number of epoch
+	NumLabels     int               `yaml:"NumLabels"`     // Number of labels
+	Label2Idx     map[string]int    `yaml:"Label2Idx"`     // Label to index, do not use negative numbers
+	Idx2Label     map[int]string    `yaml:"Idx2Label"`     // Index to label, do not use negative numbers
+	MaxConcurrency int               `yaml:"MaxConcurrency"` // Maximum number of concurrent goroutines
 }
+
 
 func (config *Config) LoadConfig(fname string) {
 	dataBytes, err := os.ReadFile(fname)
@@ -106,5 +106,5 @@ func (config *Config) LoadConfig(fname string) {
 		fmt.Println("unmarshal error: ", err)
 		return
 	}
-	// fmt.Printf("config → %+v\n", config)
+	fmt.Printf("config is: %+v\n", config)
 }

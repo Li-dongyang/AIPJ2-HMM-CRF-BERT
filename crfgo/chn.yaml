@@ -1,14 +1,14 @@
-ModelName: "crfgo-1"
+ModelName: "example_model"
 WeightsPath: "../ckpt/"
-TemplatePath: "template_for_crf.txt"
-DatasetPath: "../data/Chinese/"
+TemplatePath: "template.txt"
+DatasetPath: "../data/English/"
 TrainFile: "train.txt"
 DevFile: "validation.txt"
 TestFile: "test.txt"
-outPutFile: "output.txt"
+OutPutFile: "test_out.txt"
 
 Train: true
-maxConcurrency: 8
+MaxConcurrency: 8
 
 Language: "Chinese"
 Lr: 1 # int type

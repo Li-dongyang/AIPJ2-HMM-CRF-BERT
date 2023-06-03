@@ -9,9 +9,10 @@ import (
 func (model *LinearCRF) TrainSentence(sentence []Pair) {
 	predictSequence := make([]int, len(sentence))
 	model.Decode(sentence, predictSequence)
-	// 将推理结果写回 sentence 的 TAG 属性
-	for i, label := range predictSequence {
-		sentence[i].Tag = label
+	for i := range model.Templates {
+		for j := range sentence {
+			model.Templates[i].UpdateFeatureWeight(sentence, j, predictSequence, model.Weights, model.Config.Lr)
+		}
 	}
 }
 

@@ -107,18 +107,15 @@ func (model *LinearCRF) Train(dataset Dataset) {
 	wg := sync.WaitGroup{}
 	p, err := ants.NewPoolWithFunc(model.Config.BatchSize, func(i any) {
 		defer wg.Done()
-		gt := dataset.GetSentence(i.(int))
-		sentence := make([]Pair, len(gt))
-		copy(sentence, gt)
-		model.TrainSentence(sentence)
-	}, ants.WithPreAlloc(true), ants.WithNonblocking(true)) // no block when pool is full
+		model.TrainSentence(dataset.Data[i.(int)])
+	}, ants.WithPreAlloc(true))
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 	for epoch := 0; epoch < model.Config.Epoch; epoch++ {
 		dataset.Shuffle()
-		for i := range dataset.Data { // train each sentence
+		for i := 0; i < dataset.Len(); i++ { // train each sentence
 			wg.Add(1)
 			_ = p.Invoke(i)
 		}
@@ -130,7 +127,7 @@ func (model *LinearCRF) Train(dataset Dataset) {
 func (model *LinearCRF) Test(dataset Dataset) {
 	wg := sync.WaitGroup{}
 	fmt.Println("Testing...")
-	for i := range dataset.Data { // train each sentence
+	for i := 0; i < dataset.Len(); i++ { // val each sentence
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -138,7 +135,7 @@ func (model *LinearCRF) Test(dataset Dataset) {
 		}(i)
 	}
 	wg.Wait()
-	dataset.Store(model.Config.DatasetPath + model.Config.outPutFile)
+	dataset.Store(model.Config.DatasetPath + model.Config.OutPutFile)
 }
 
 func (model *LinearCRF) LoadTemplates() {
@@ -151,13 +148,17 @@ func (model *LinearCRF) LoadTemplates() {
 	re := regexp.MustCompile(`\[-?\d+`)
 	for i := range templateLines {
 		templateLines[i] = strings.Trim(templateLines[i], " \n\t\"")
-		if len(templateLines[i]) == 0 || templateLines[i][0] == '#' {
+		if len(templateLines[i]) == 0 || strings.HasPrefix(templateLines[i], "#") {
 			continue
 		}
 		template := TemplateFunction{}
 		templateparse := strings.Split(templateLines[i], ":")
+		if len(templateparse) != 2 {
+			fmt.Println("Template format error", templateLines[i], strings.HasPrefix(templateLines[i], "#"))
+			os.Exit(1)
+		}
 		template.TemplateName = templateparse[0]
-		template.IsUnigram = template.TemplateName[0] == 'U'
+		template.IsUnigram = strings.HasPrefix(templateLines[i], "U")
 		matches := re.FindAllString(templateparse[1], -1)
 		for _, match := range matches { // remove the first char, which is '['
 			if num, err := strconv.Atoi(match[1:]); err != nil {
@@ -167,11 +168,12 @@ func (model *LinearCRF) LoadTemplates() {
 				template.SamlpeIdx = append(template.SamlpeIdx, num)
 			}
 		}
+		model.Templates = append(model.Templates, template)
 	}
 }
 
 func (model *LinearCRF) SaveModel() {
-	if err := model.Weights.SaveToFileConcurrent(config.WeightsPath + config.ModelName + ".bin", config.maxConcurrency); err != nil {
+	if err := model.Weights.SaveToFileConcurrent(config.WeightsPath + config.ModelName + ".bin", config.MaxConcurrency); err != nil {
 		fmt.Println(err)
 	} else {
 		fmt.Println("Model saved to", config.WeightsPath + config.ModelName + ".bin")
