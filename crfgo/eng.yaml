@@ -1,4 +1,4 @@
-ModelName: "example_model"
+ModelName: "gocrf_model"
 WeightsPath: "../ckpt/"
 TemplatePath: "template.txt"
 DatasetPath: "../data/English/"
@@ -7,13 +7,13 @@ DevFile: "validation.txt"
 TestFile: "test.txt"
 OutPutFile: "test_out.txt"
 
-Train: true
+Train: false
 MaxConcurrency: 8
 
 Language: "English"
 Lr: 1 # int type
-BatchSize: 32
-Epoch: 10
+BatchSize: 2
+Epoch: 5
 NumLabels: 9
 Label2Idx:
   O: 0

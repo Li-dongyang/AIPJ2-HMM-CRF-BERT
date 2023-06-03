@@ -98,10 +98,11 @@ func SetCache(keybytes []byte, value ProbType, cache *fastcache.Cache) {
 }
 
 func GetCache(keybytes []byte, cache *fastcache.Cache) ProbType {
-	bits := make([]byte, 8)
-	if _, exists := cache.HasGet(bits, keybytes); !exists {
+	bits := make([]byte, 0)
+	bit, exists := cache.HasGet(bits, keybytes)
+	if !exists {
 		return ProbType(0)
 	}
-	u := binary.LittleEndian.Uint64(bits)
+	u := binary.LittleEndian.Uint64(bit)
 	return ProbType(u)
 }

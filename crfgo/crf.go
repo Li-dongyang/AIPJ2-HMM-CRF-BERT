@@ -38,31 +38,39 @@ func (templateFunction *TemplateFunction) UpdateFeatureWeight(sentence []Pair, i
 			key = append(key, sentence[idx+templateFunction.SamlpeIdx[i]].Word)
 		}
 	}
+	gtKey := make([]string, len(key))
+	copy(gtKey, key)
 	negtive := false
 	if templateFunction.IsUnigram {
-		key = append(key, strconv.Itoa(predictSequence[idx]))
 		if predictSequence[idx] != sentence[idx].Tag {
 			negtive = true
+			key = append(key, strconv.Itoa(predictSequence[idx]))
+			gtKey = append(gtKey, strconv.Itoa(sentence[idx].Tag))
 		}
 	} else {
 		if idx == 0 {
-			key = append(key, strconv.Itoa(STARTTAG), strconv.Itoa(predictSequence[idx]))
 			if predictSequence[idx] != sentence[idx].Tag {
 				negtive = true
+				key = append(key, strconv.Itoa(STARTTAG), strconv.Itoa(predictSequence[idx]))
+				gtKey = append(gtKey, strconv.Itoa(STARTTAG), strconv.Itoa(sentence[idx].Tag))
 			}
 		} else {
-			key = append(key, strconv.Itoa(predictSequence[idx-1]), strconv.Itoa(predictSequence[idx]))
 			if predictSequence[idx] != sentence[idx].Tag || predictSequence[idx-1] != sentence[idx-1].Tag {
 				negtive = true
+				key = append(key, strconv.Itoa(predictSequence[idx-1]), strconv.Itoa(predictSequence[idx]))
+				gtKey = append(gtKey, strconv.Itoa(sentence[idx-1].Tag), strconv.Itoa(sentence[idx].Tag))
 			}
 		}
 	}
 	if negtive {
-		lr = -lr
+		keybytes := []byte(strings.Join(key, "/"))
+		weight := GetCache(keybytes, cache)
+		SetCache(keybytes, weight - lr, cache)
+	
+		gtkeybytes := []byte(strings.Join(gtKey, "/"))
+		gtWeight := GetCache(gtkeybytes, cache)
+		SetCache(gtkeybytes, gtWeight + lr, cache)
 	}
-	keybytes := []byte(strings.Join(key, "/"))
-	weight := GetCache(keybytes, cache)
-	SetCache(keybytes, weight+lr, cache)
 }
 
 func (templateFunction *TemplateFunction) GetFeatureWeightInfer(sentence []Pair, idx int, prevTag int, thisTag int, cache *fastcache.Cache) ProbType {
@@ -83,7 +91,8 @@ func (templateFunction *TemplateFunction) GetFeatureWeightInfer(sentence []Pair,
 		key = append(key, strconv.Itoa(prevTag), strconv.Itoa(thisTag))
 	}
 	keybytes := []byte(strings.Join(key, "/"))
-	return GetCache(keybytes, cache)
+	weight := GetCache(keybytes, cache)
+	return weight
 }
 
 type LinearCRF struct {
