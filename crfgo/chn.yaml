@@ -1,0 +1,85 @@
+ModelName: "crfgo-1"
+WeightsPath: "../ckpt/"
+TemplatePath: "template_for_crf.txt"
+DatasetPath: "../data/Chinese/"
+TrainFile: "train.txt"
+DevFile: "validation.txt"
+TestFile: "test.txt"
+outPutFile: "output.txt"
+
+Train: true
+maxConcurrency: 8
+
+Language: "Chinese"
+Lr: 1 # int type
+BatchSize: 32
+Epoch: 10
+NumLabels: 33
+Label2Idx:
+  O: 0
+  B-NAME: 1
+  M-NAME: 2
+  E-NAME: 3
+  S-NAME: 4
+  B-CONT: 5
+  M-CONT: 6
+  E-CONT: 7
+  S-CONT: 8
+  B-EDU: 9
+  M-EDU: 10
+  E-EDU: 11
+  S-EDU: 12
+  B-TITLE: 13
+  M-TITLE: 14
+  E-TITLE: 15
+  S-TITLE: 16
+  B-ORG: 17
+  M-ORG: 18
+  E-ORG: 19
+  S-ORG: 20
+  B-RACE: 21
+  M-RACE: 22
+  E-RACE: 23
+  S-RACE: 24
+  B-PRO: 25
+  M-PRO: 26
+  E-PRO: 27
+  S-PRO: 28
+  B-LOC: 29
+  M-LOC: 30
+  E-LOC: 31
+  S-LOC: 32
+Idx2Label:
+  0: "O"
+  1: "B-NAME"
+  2: "M-NAME"
+  3: "E-NAME"
+  4: "S-NAME"
+  5: "B-CONT"
+  6: "M-CONT"
+  7: "E-CONT"
+  8: "S-CONT"
+  9: "B-EDU"
+  10: "M-EDU"
+  11: "E-EDU"
+  12: "S-EDU"
+  13: "B-TITLE"
+  14: "M-TITLE"
+  15: "E-TITLE"
+  16: "S-TITLE"
+  17: "B-ORG"
+  18: "M-ORG"
+  19: "E-ORG"
+  20: "S-ORG"
+  21: "B-RACE"
+  22: "M-RACE"
+  23: "E-RACE"
+  24: "S-RACE"
+  25: "B-PRO"
+  26: "M-PRO"
+  27: "E-PRO"
+  28: "S-PRO"
+  29: "B-LOC"
+  30: "M-LOC"
+  31: "E-LOC"
+  32: "S-LOC"

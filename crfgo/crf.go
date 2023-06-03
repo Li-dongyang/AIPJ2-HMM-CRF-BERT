@@ -13,52 +13,68 @@ import (
 )
 
 const (
-	START = "<cls>"
-	END   = "<eos>"
-	STARTTAG = -1
+	START    = "<cls>"
+	END      = "<eos>"
+	STARTTAG = 101
 )
+
+type ProbType int
 
 type TemplateFunction struct {
 	TemplateName string
-	IsUnigram bool
-	SamlpeIdx []int
+	IsUnigram    bool
+	SamlpeIdx    []int
 }
 
-func (templateFunction *TemplateFunction) GetFeatureWeight(sentence []Pair, idx int, cache *fastcache.Cache) float64 {
-	key := make([]string, 0, len(templateFunction.SamlpeIdx) + 3)
+func (templateFunction *TemplateFunction) UpdateFeatureWeight(sentence []Pair, idx int, predictSequence []int, cache *fastcache.Cache, lr ProbType) {
+	key := make([]string, 0, len(templateFunction.SamlpeIdx)+3)
 	key = append(key, templateFunction.TemplateName)
 	for i := range templateFunction.SamlpeIdx {
-		if idx + templateFunction.SamlpeIdx[i] < 0 {
+		if idx+templateFunction.SamlpeIdx[i] < 0 {
 			key = append(key, START)
-		} else if idx + templateFunction.SamlpeIdx[i] >= len(sentence) {
+		} else if idx+templateFunction.SamlpeIdx[i] >= len(sentence) {
 			key = append(key, END)
 		} else {
-			key = append(key, sentence[idx + templateFunction.SamlpeIdx[i]].Word)
+			key = append(key, sentence[idx+templateFunction.SamlpeIdx[i]].Word)
 		}
 	}
+	negtive := false
 	if templateFunction.IsUnigram {
-		key = append(key, strconv.Itoa(sentence[idx].Tag))
+		key = append(key, strconv.Itoa(predictSequence[idx]))
+		if predictSequence[idx] != sentence[idx].Tag {
+			negtive = true
+		}
 	} else {
 		if idx == 0 {
-			key = append(key, strconv.Itoa(STARTTAG), strconv.Itoa(sentence[idx].Tag))
+			key = append(key, strconv.Itoa(STARTTAG), strconv.Itoa(predictSequence[idx]))
+			if predictSequence[idx] != sentence[idx].Tag {
+				negtive = true
+			}
 		} else {
-			key = append(key, strconv.Itoa(sentence[idx - 1].Tag), strconv.Itoa(sentence[idx].Tag))
+			key = append(key, strconv.Itoa(predictSequence[idx-1]), strconv.Itoa(predictSequence[idx]))
+			if predictSequence[idx] != sentence[idx].Tag || predictSequence[idx-1] != sentence[idx-1].Tag {
+				negtive = true
+			}
 		}
 	}
+	if negtive {
+		lr = -lr
+	}
 	keybytes := []byte(strings.Join(key, "/"))
-	return GetCache(keybytes, cache)
+	weight := GetCache(keybytes, cache)
+	SetCache(keybytes, weight+lr, cache)
 }
 
-func (templateFunction *TemplateFunction) GetFeatureWeightInfer(sentence []Pair, idx int, prevTag int, thisTag int, cache *fastcache.Cache) float64 {
-	key := make([]string, 0, len(templateFunction.SamlpeIdx) + 3)
+func (templateFunction *TemplateFunction) GetFeatureWeightInfer(sentence []Pair, idx int, prevTag int, thisTag int, cache *fastcache.Cache) ProbType {
+	key := make([]string, 0, len(templateFunction.SamlpeIdx)+3)
 	key = append(key, templateFunction.TemplateName)
 	for i := range templateFunction.SamlpeIdx {
-		if idx + templateFunction.SamlpeIdx[i] < 0 {
+		if idx+templateFunction.SamlpeIdx[i] < 0 {
 			key = append(key, START)
-		} else if idx + templateFunction.SamlpeIdx[i] >= len(sentence) {
+		} else if idx+templateFunction.SamlpeIdx[i] >= len(sentence) {
 			key = append(key, END)
 		} else {
-			key = append(key, sentence[idx + templateFunction.SamlpeIdx[i]].Word)
+			key = append(key, sentence[idx+templateFunction.SamlpeIdx[i]].Word)
 		}
 	}
 	if templateFunction.IsUnigram {
@@ -71,12 +87,13 @@ func (templateFunction *TemplateFunction) GetFeatureWeightInfer(sentence []Pair,
 }
 
 type LinearCRF struct {
-	Weights        *fastcache.Cache
-	Config         *Config
-	Templates      []TemplateFunction
+	Weights   *fastcache.Cache
+	Config    *Config
+	Templates []TemplateFunction
 }
 
-func NewModel(config *Config, weights *fastcache.Cache) *LinearCRF {
+func NewModel(config *Config) *LinearCRF {
+	weights := fastcache.LoadFromFileOrNew(config.WeightsPath + config.ModelName + ".bin", maxWeightSize)
 	model := &LinearCRF{
 		Weights: weights,
 		Config:  config,
@@ -90,7 +107,9 @@ func (model *LinearCRF) Train(dataset Dataset) {
 	wg := sync.WaitGroup{}
 	p, err := ants.NewPoolWithFunc(model.Config.BatchSize, func(i any) {
 		defer wg.Done()
-		sentence := dataset.GetSentence(i.(int))
+		gt := dataset.GetSentence(i.(int))
+		sentence := make([]Pair, len(gt))
+		copy(sentence, gt)
 		model.TrainSentence(sentence)
 	}, ants.WithPreAlloc(true), ants.WithNonblocking(true)) // no block when pool is full
 	if err != nil {
@@ -152,9 +171,9 @@ func (model *LinearCRF) LoadTemplates() {
 }
 
 func (model *LinearCRF) SaveModel() {
-	if err := model.Weights.SaveToFileConcurrent(weightsFilePath, config.maxConcurrency); err != nil {
+	if err := model.Weights.SaveToFileConcurrent(config.WeightsPath + config.ModelName + ".bin", config.maxConcurrency); err != nil {
 		fmt.Println(err)
 	} else {
-		fmt.Println("Model saved to", weightsFilePath)
+		fmt.Println("Model saved to", config.WeightsPath + config.ModelName + ".bin")
 	}
 }

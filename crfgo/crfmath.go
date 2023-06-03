@@ -2,30 +2,43 @@ package main
 
 import (
 	"encoding/binary"
-	"math"
 
 	"github.com/VictoriaMetrics/fastcache"
 )
 
 func (model *LinearCRF) TrainSentence(sentence []Pair) {
-	//TODO
+	predictSequence := make([]int, len(sentence))
+	model.Decode(sentence, predictSequence)
+	// 将推理结果写回 sentence 的 TAG 属性
+	for i, label := range predictSequence {
+		sentence[i].Tag = label
+	}
 }
 
 func (model *LinearCRF) Infer(sentence []Pair) {
+	bestSequence := make([]int, len(sentence))
+	model.Decode(sentence, bestSequence)
+	// 将推理结果写回 sentence 的 TAG 属性
+	for i, label := range bestSequence {
+		sentence[i].Tag = label
+	}
+}
+
+func (model *LinearCRF) Decode(sentence []Pair, bestSequence []int) {
 	T := len(sentence)
 	numLabels := model.Config.NumLabels
 	numFeatures := len(model.Templates)
-	dp := make([][]float64, T)
+	dp := make([][]ProbType, T)
 	backpointers := make([][]int, T)
 	for i := 0; i < T; i++ {
-		dp[i] = make([]float64, numLabels)
+		dp[i] = make([]ProbType, numLabels)
 		backpointers[i] = make([]int, numLabels)
 	}
 	cache := model.Weights
 
 	// 初始化第一个位置的动态规划值
 	for j := 0; j < numLabels; j++ {
-		score := 0.0
+		var score ProbType = 0
 		for k := 0; k < numFeatures; k++ {
 			weight := model.Templates[k].GetFeatureWeightInfer(sentence, 0, STARTTAG, j, cache)
 			score += weight
@@ -36,7 +49,7 @@ func (model *LinearCRF) Infer(sentence []Pair) {
 	// 递推计算动态规划值和回溯指针
 	for t := 1; t < T; t++ {
 		for j := 0; j < numLabels; j++ {
-			maxScore := math.Inf(-1)
+			var maxScore ProbType = -1e9
 			maxPrevLabel := 0
 
 			for prevLabel := 0; prevLabel < numLabels; prevLabel++ {
@@ -56,9 +69,11 @@ func (model *LinearCRF) Infer(sentence []Pair) {
 	}
 
 	// 回溯获取最佳标签序列
-	bestSequence := make([]int, T)
 	bestLabel := 0
-	bestScore := math.Inf(-1)
+	if bestSequence == nil || len(bestSequence) != T {
+		bestSequence = make([]int, T)
+	}
+	var bestScore ProbType = -1e9
 	for j := 0; j < numLabels; j++ {
 		score := dp[T-1][j]
 		if score > bestScore {
@@ -71,25 +86,21 @@ func (model *LinearCRF) Infer(sentence []Pair) {
 		bestLabel = backpointers[t+1][bestLabel]
 		bestSequence[t] = bestLabel
 	}
-
-	// 将推理结果写回 sentence 的 TAG 属性
-	for i, label := range bestSequence {
-		sentence[i].Tag = label
-	}
 }
 
-func SetCache(keybytes []byte, value float64, cache *fastcache.Cache) {
-	u := math.Float64bits(value)
+func SetCache(keybytes []byte, value ProbType, cache *fastcache.Cache) {
+	// u := math.Float64bits(value)
+	u := uint64(value)
 	bits := make([]byte, 8)
 	binary.LittleEndian.PutUint64(bits, u)
 	cache.Set(keybytes, bits)
 }
 
-func GetCache(keybytes []byte, cache *fastcache.Cache) float64 {
+func GetCache(keybytes []byte, cache *fastcache.Cache) ProbType {
 	bits := make([]byte, 8)
 	if _, exists := cache.HasGet(bits, keybytes); !exists {
-		return 0.0
+		return ProbType(0)
 	}
 	u := binary.LittleEndian.Uint64(bits)
-	return math.Float64frombits(u)
+	return ProbType(u)
 }

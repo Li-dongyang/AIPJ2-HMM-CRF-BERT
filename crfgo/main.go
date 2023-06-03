@@ -3,18 +3,14 @@ package main
 import (
 	"fmt"
 	"flag"
-
-	"github.com/VictoriaMetrics/fastcache"
 )
 
 const (
-	weightsFilePath = "../ckpt/weights.bin"
 	maxWeightSize = 1 << 30 // 1 GB
 )
 
 var (
-	configFile = flag.String("c", "./config.yaml", "Path to the config file")
-	weights = fastcache.LoadFromFileOrNew(weightsFilePath, maxWeightSize)
+	configFile = flag.String("c", "./eng.yaml", "Path to the config file")
 	config = Config{}
 )
 
@@ -30,7 +26,7 @@ func main() {
 		DevDataset.LoadDataset(config.DatasetPath + config.DevFile)
 		fmt.Println("Dev dataset size:", DevDataset.Len())
 
-		Model := NewModel(&config, weights)
+		Model := NewModel(&config)
 		Model.Train(TrainDataset)
 
 		Model.SaveModel()
@@ -39,7 +35,7 @@ func main() {
 		TestDataset := Dataset{Label2Idx: config.Label2Idx, Idx2Label: config.Idx2Label}
 		TestDataset.LoadDataset(config.DatasetPath + config.TestFile)
 
-		Model := NewModel(&config, weights)
+		Model := NewModel(&config)
 		Model.Test(TestDataset)
 	}
 }

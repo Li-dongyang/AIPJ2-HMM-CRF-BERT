@@ -2,22 +2,22 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"math/rand"
+	"os"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
 type Dataset struct {
-	Data [][]Pair
+	Data      [][]Pair
 	Label2Idx map[string]int
 	Idx2Label map[int]string
 }
 
 type Pair struct {
 	Word string
-	Tag int
+	Tag  int
 }
 
 func (dataset *Dataset) LoadDataset(fname string) {
@@ -52,7 +52,7 @@ func (dataset *Dataset) Store(fname string) {
 		}
 		dataBytes = append(dataBytes, []byte("\n")...)
 	}
-	
+
 	if err := os.WriteFile(fname, dataBytes, 0644); err != nil { // clear the file and write
 		fmt.Println(err)
 	}
@@ -73,24 +73,24 @@ func (dataset *Dataset) Len() int {
 }
 
 type Config struct {
-	ModelName string // Name of the model
-	WeightsPath string // Path to the weights file
+	ModelName    string // Name of the model
+	WeightsPath  string // Path to the weights file
 	TemplatePath string // Path to the template file
-	DatasetPath string // Path to the dataset file
-	TrainFile string // Path to the train file
-	DevFile string // Path to the dev file
-	TestFile string // Path to the test file
-	outPutFile string // Path to the output file
+	DatasetPath  string // Path to the dataset file
+	TrainFile    string // Path to the train file
+	DevFile      string // Path to the dev file
+	TestFile     string // Path to the test file
+	outPutFile   string // Path to the output file
 
 	Train bool // Train the model ?
 
-	Language string
-	Lr float64 // Learning rate
-	BatchSize int // Batch size, implemented by chan for aggretated gradients
-	Epoch int // Number of epoch
-	NumLabels int // Number of labels
-	Label2Idx map[string]int // Label to index
-	Idx2Label map[int]string // Index to label
+	Language  string
+	Lr        ProbType       // Learning rate
+	BatchSize int            // Batch size, implemented by chan for aggretated gradients
+	Epoch     int            // Number of epoch
+	NumLabels int            // Number of labels
+	Label2Idx map[string]int // Label to index, do not use negtive number
+	Idx2Label map[int]string // Index to label, do not use negtive number
 
 	maxConcurrency int // Maximum number of concurrent goroutines
 }

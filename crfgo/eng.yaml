@@ -1,0 +1,39 @@
+ModelName: "example_model"
+WeightsPath: "../ckpt/"
+TemplatePath: "template_for_crf.txt"
+DatasetPath: "../data/English/"
+TrainFile: "train.txt"
+DevFile: "validation.txt"
+TestFile: "test.txt"
+outPutFile: "output.txt"
+
+Train: true
+maxConcurrency: 8
+
+Language: "English"
+Lr: 1 # int type
+BatchSize: 32
+Epoch: 10
+NumLabels: 9
+Label2Idx:
+  O: 0
+  B-PER: 1
+  I-PER: 2
+  B-ORG: 3
+  I-ORG: 4
+  B-LOC: 5
+  I-LOC: 6
+  B-MISC: 7
+  I-MISC: 8
+Idx2Label:
+  0: "O"
+  1: "B-PER"
+  2: "I-PER"
+  3: "B-ORG"
+  4: "I-ORG"
+  5: "B-LOC"
+  6: "I-LOC"
+  7: "B-MISC"
+  8: "I-MISC"
+
+
