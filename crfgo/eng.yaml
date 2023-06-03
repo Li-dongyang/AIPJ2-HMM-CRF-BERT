@@ -1,4 +1,4 @@
-ModelName: "gocrf_model_eng_v2_2"
+ModelName: "gocrf_model_eng_v3"
 WeightsPath: "../ckpt/"
 TemplatePath: "template.txt"
 DatasetPath: "../data/backupeng/"
@@ -12,8 +12,8 @@ MaxConcurrency: 8
 
 Language: "English"
 Lr: 1 # int type
-BatchSize: 2
-Epoch: 30
+BatchSize: 128
+Epoch: 20
 NumLabels: 9
 Label2Idx:
   O: 0
