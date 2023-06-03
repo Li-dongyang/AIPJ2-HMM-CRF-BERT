@@ -7,12 +7,12 @@ DevFile: "validation.txt"
 TestFile: "test.txt"
 OutPutFile: "test_out.txt"
 
-Train: true
+Train: false
 MaxConcurrency: 8
 
 Language: "Chinese"
 Lr: 1 # int type
-BatchSize: 64
+BatchSize: 128
 Epoch: 15
 NumLabels: 33
 Label2Idx:
