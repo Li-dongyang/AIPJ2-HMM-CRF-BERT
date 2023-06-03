@@ -1,19 +1,19 @@
-ModelName: "gocrf_model_chn"
+ModelName: "gocrf_model_chn_v1"
 WeightsPath: "../ckpt/"
 TemplatePath: "template.txt"
 DatasetPath: "../data/Chinese/"
 TrainFile: "train.txt"
 DevFile: "validation.txt"
-TestFile: "test.txt"
+TestFile: "chinese_test.txt"
 OutPutFile: "test_out.txt"
 
-Train: true
+Train: false
 MaxConcurrency: 8
 
 Language: "Chinese"
 Lr: 1 # int type
-BatchSize: 64
-Epoch: 15
+BatchSize: 128
+Epoch: 14
 NumLabels: 33
 Label2Idx:
   O: 0

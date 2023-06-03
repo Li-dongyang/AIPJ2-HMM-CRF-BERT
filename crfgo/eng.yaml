@@ -1,19 +1,19 @@
-ModelName: "gocrf_model_eng_v3"
+ModelName: "gocrf_model_eng_v4_1"
 WeightsPath: "../ckpt/"
 TemplatePath: "template.txt"
-DatasetPath: "../data/backupeng/"
+DatasetPath: "../data/English/"
 TrainFile: "train.txt"
-DevFile: "test.txt"
+DevFile: "validation.txt"
 TestFile: "test.txt"
 OutPutFile: "test_out.txt"
 
-Train: true
+Train: false
 MaxConcurrency: 8
 
 Language: "English"
 Lr: 1 # int type
 BatchSize: 128
-Epoch: 20
+Epoch: 14
 NumLabels: 9
 Label2Idx:
   O: 0
