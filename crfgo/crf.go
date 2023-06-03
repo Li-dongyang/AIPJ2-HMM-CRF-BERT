@@ -86,7 +86,7 @@ func (templateFunction *TemplateFunction) GetFeatureWeightInfer(sentence []Pair,
 		}
 	}
 	if templateFunction.IsUnigram {
-		key = append(key, strconv.Itoa(thisTag))
+		key = append(key, strconv.Itoa(STARTTAG), strconv.Itoa(thisTag))
 	} else {
 		key = append(key, strconv.Itoa(prevTag), strconv.Itoa(thisTag))
 	}
